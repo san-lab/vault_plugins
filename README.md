@@ -1,48 +1,39 @@
-----
--	Website: https://www.vaultproject.io
--	GitHub repository: https://github.com/hashicorp/vault
--	IRC: `#vault-tool` on Freenode
--	Announcement list: [Google Groups](https://groups.google.com/group/hashicorp-announce)
--	Discussion list: [Google Groups](https://groups.google.com/group/vault-tool)
+## Steps to test the plugin
+```
+cd vault-guides/secrets/mock
+go build -o vault/plugins/mock cmd/mock/main.go
+```
 
-<img width="300" alt="Vault Logo" src="https://cloud.githubusercontent.com/assets/416727/24112835/03b57de4-0d58-11e7-81f5-9056cac5b427.png">
+Start vault on a different terminal with 
+```
+vault server -dev -dev-root-token-id=root -dev-plugin-dir=./vault/plugins
+```
+Go back to the first terminal
+```
+export VAULT_ADDR="http://127.0.0.1:8200"
+vault login root
+vault secrets enable signTx
+vault policy write pedro Vault_profiles/user1.hcl 
+vault policy write guillermo Vault_profiles/user2.hcl 
+vault policy write przemek Vault_profiles/user3.hcl
+```
 
-----
-# Vault-Guides
+Now you can try to log in as different users and see that each of them can only acces the key they insert.
+```
+vault token create -policy=pedro (to create a login token)
+vault login <token>
+vault write signTx/ethKeypedro ethKey="0xC87509A1C067BBDE78BEB793E6FA76530B6382A4C0241E5E4A9EC0A0F44DC0D3"
+vault read signTx/ethKeypedro
+```
 
-This repository provides the technical content to support the [Vault learn](https://learn.hashicorp.com/vault/) site.
 
-## Operations
-
-This area will contain instructions to operationalize Vault.
-
-- [Provision a Dev Vault Cluster locally with Vagrant](operations/provision-vault/dev/vagrant-local)
-- [Provision a Dev Vault Cluster on AWS with Terraform](operations/provision-vault/dev/terraform-aws)
-- [Provision a Quick Start Vault & Consul Cluster on AWS with Terraform](operations/provision-vault/quick-start/terraform-aws)
-- [Provision a Best Practices Vault & Consul Cluster on AWS with Terraform](operations/provision-vault/best-practices/terraform-aws)
-
-## Secrets
-
-This directory contains example use cases involving [secrets management](https://www.vaultproject.io/docs/secrets/index.html).
-
-## Identity
-
-This directory contains example use cases involving [identity](https://www.vaultproject.io/docs/auth/index.html).
-
-## Encryption
-
-This directory contains example use cases involving [encryption as a service](https://www.vaultproject.io/docs/secrets/transit/index.html).
-
-## Assets
-
-This directory contains graphics and other material for the repository.
-
-## `gitignore.tf` Files
-
-You may notice some [`gitignore.tf`](operations/provision-consul/best-practices/terraform-aws/gitignore.tf) files in certain directories. `.tf` files that contain the word "gitignore" are ignored by git in the [`.gitignore`](./.gitignore) file.
-
-If you have local Terraform configuration that you want ignored (like Terraform backend configuration), create a new file in the directory (separate from `gitignore.tf`) that contains the word "gitignore" (e.g. `backend.gitignore.tf`) and it won't be picked up as a change.
-
-## Contributing
-
-We welcome contributions and feedback! For guide submissions, please see [the contributions guide](CONTRIBUTING.md)
+Now we will try to log in as other user for example przemek and we will see that it cannot access the key from pedro
+First we need root privileges to ask for a token for przemek profile
+```
+vault login root
+```
+```
+vault token create -policy=przemek
+vault login <token>
+vault read signTx/ethKeypedro
+```
