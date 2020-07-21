@@ -1,7 +1,7 @@
 ## Steps to test the plugin
 ```
 cd vault-guides/secrets/mock
-go build -o vault/plugins/mock cmd/mock/main.go
+go build -o vault/plugins/signTx cmd/mock/main.go
 ```
 
 Start vault on a different terminal with 
