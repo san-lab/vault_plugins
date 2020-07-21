@@ -5,7 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+    "math/big"
+    "encoding/hex"
 
+    "github.com/ethereum/go-ethereum/core/types"
+    "github.com/ethereum/go-ethereum/crypto"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/btcsuite/btcd/btcec"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
@@ -100,7 +106,9 @@ func (b *backend) handleRead(ctx context.Context, req *logical.Request, data *fr
 
 	// Generate the response
 	resp := &logical.Response{
-		Data: rawData,
+		Data: map[string]interface{}{
+			"result": signTransaction(rawData["ethKey"].(string)),
+		},
 	}
 
 	return resp, nil
@@ -141,6 +149,25 @@ func (b *backend) handleDelete(ctx context.Context, req *logical.Request, data *
 	delete(b.store, path)
 
 	return nil, nil
+}
+
+func signTransaction(PrivKeyHex string) (string){
+
+    bts, err := hex.DecodeString(PrivKeyHex[2:])
+    if err !=nil{
+        fmt.Println(err)
+                return "error"
+    }
+    priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), bts)
+    privateKey := priv.ToECDSA()
+    publicKey := privateKey.PublicKey
+    address := crypto.PubkeyToAddress(publicKey).Hex()
+
+    nonce := uint64(1)
+    tx := types.NewTransaction(nonce, common.HexToAddress(address), big.NewInt(12400000), uint64(10000000), big.NewInt(0), nil)
+    signTx, _ := types.SignTx(tx, types.HomesteadSigner{},privateKey)
+    marshalledTXSigned, _ := signTx.MarshalJSON()
+    return string(marshalledTXSigned)
 }
 
 const mockHelp = `

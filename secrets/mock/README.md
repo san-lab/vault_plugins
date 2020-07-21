@@ -1,36 +1,39 @@
-# Vault Mock Secrets Plugin
-
-Mock is an example secrets engine plugin for [HashiCorp Vault](https://www.vaultproject.io/). It is meant for demonstration purposes only and should never be used in production.
-
-## Usage
-
-All commands can be run using the provided [Makefile](./Makefile). However, it may be instructive to look at the commands to gain a greater understanding of how Vault registers plugins. Using the Makefile will result in running the Vault server in `dev` mode. Do not run Vault in `dev` mode in production. The `dev` server allows you to configure the plugin directory as a flag, and automatically registers plugin binaries in that directory. In production, plugin binaries must be manually registered.
-
-This will build the plugin binary and start the Vault dev server:
+## Steps to test the plugin
 ```
-# Build Mock plugin and start Vault dev server with plugin automatically registered
-$ make
+cd vault-guides/secrets/mock
+go build -o vault/plugins/mock cmd/mock/main.go
 ```
 
-Now open a new terminal window and run the following commands:
+Start vault on a different terminal with 
 ```
-# Open a new terminal window and export Vault dev server http address
-$ export VAULT_ADDR='http://127.0.0.1:8200'
-
-# Enable the Mock plugin
-$ make enable
-
-# Write a secret to the Mock secrets engine
-$ vault write mock/test hello="world"
-Success! Data written to: mock/test
-
-# Retrieve secret from Mock secrets engine
-$ vault read mock/test
-Key      Value
----      -----
-hello    world
+vault server -dev -dev-root-token-id=root -dev-plugin-dir=./vault/plugins
+```
+Go back to the first terminal
+```
+export VAULT_ADDR="http://127.0.0.1:8200"
+vault login root
+vault secrets enable signTx
+vault policy write pedro Vault_profiles/user1.hcl 
+vault policy write guillermo Vault_profiles/user2.hcl 
+vault policy write przemek Vault_profiles/user3.hcl
 ```
 
-## License
+Now you can try to log in as different users and see that each of them can only acces the key they insert.
+```
+vault token create -policy=pedro (to create a login token)
+vault login <token>
+vault write signTx/ethKeypedro ethKey="0xC87509A1C067BBDE78BEB793E6FA76530B6382A4C0241E5E4A9EC0A0F44DC0D3"
+vault read signTx/ethKeypedro
+```
 
-Mock was contributed to the HashiCorp community by [hasheddan](https://github.com/hasheddan/vault-plugin-secrets-covert). In doing so, the original license has been removed.
+
+Now we will try to log in as other user for example przemek and we will see that it cannot access the key from pedro
+First we need root privileges to ask for a token for przemek profile
+```
+vault login root
+```
+```
+vault token create -policy=przemek
+vault login <token>
+vault read signTx/ethKeypedro
+```
