@@ -7,9 +7,10 @@ import (
 	"strings"
     "math/big"
     "encoding/hex"
+    //"strconv"
 
     "github.com/ethereum/go-ethereum/core/types"
-    "github.com/ethereum/go-ethereum/crypto"
+    //"github.com/ethereum/go-ethereum/crypto"
     "github.com/ethereum/go-ethereum/common"
     "github.com/btcsuite/btcd/btcec"
 	"github.com/hashicorp/errwrap"
@@ -57,6 +58,10 @@ func (b *backend) paths() []*framework.Path {
 					Type:        framework.TypeString,
 					Description: "Specifies the path of the secret.",
 				},
+				"tx": {
+					Type:        framework.TypeString,
+					Description: "Specifies the nonce of the transaction.",
+				},
 			},
 
 			Operations: map[logical.Operation]framework.OperationHandler{
@@ -94,23 +99,36 @@ func (b *backend) handleExistenceCheck(ctx context.Context, req *logical.Request
 func (b *backend) handleRead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	if req.ClientToken == "" {
 		return nil, fmt.Errorf("client token empty")
+	
 	}
 
+
+	resp := &logical.Response{
+		Data: map[string]interface{}{},
+			
+	}
 	path := data.Get("path").(string)
+	tx := data.Get("tx").(string)
+    //txdata := new(Txdata)
+	//err := json.Unmarshal([]byte(tx), txdata)
+	transaction := new(types.Transaction)
+	
+	err := transaction.UnmarshalJSON([]byte(tx))
+
+	resp.Data["nonce"] = fmt.Sprint(transaction.Nonce())
+	if err != nil{
+		resp.Data["error"] = fmt.Sprint(err)
+		return resp, nil
+	}
 
 	// Decode the data
-	var rawData map[string]interface{}
+	var rawData = map[string]string{}
 	if err := jsonutil.DecodeJSON(b.store[req.ClientToken+"/"+path], &rawData); err != nil {
 		return nil, errwrap.Wrapf("json decoding failed: {{err}}", err)
 	}
 
 	// Generate the response
-	resp := &logical.Response{
-		Data: map[string]interface{}{
-			"result": signTransaction(rawData["ethKey"].(string)),
-		},
-	}
-
+	resp.Data["result"] = signTransaction(rawData["ethKey"], transaction)
 	return resp, nil
 }
 
@@ -151,7 +169,7 @@ func (b *backend) handleDelete(ctx context.Context, req *logical.Request, data *
 	return nil, nil
 }
 
-func signTransaction(PrivKeyHex string) (string){
+func signTransaction(PrivKeyHex string, tx *types.Transaction) (string){
 
     bts, err := hex.DecodeString(PrivKeyHex[2:])
     if err !=nil{
@@ -160,14 +178,32 @@ func signTransaction(PrivKeyHex string) (string){
     }
     priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), bts)
     privateKey := priv.ToECDSA()
-    publicKey := privateKey.PublicKey
-    address := crypto.PubkeyToAddress(publicKey).Hex()
+    //publicKey := privateKey.PublicKey
+    //address := crypto.PubkeyToAddress(publicKey).Hex()
 
-    nonce := uint64(1)
-    tx := types.NewTransaction(nonce, common.HexToAddress(address), big.NewInt(12400000), uint64(10000000), big.NewInt(0), nil)
+    //i, err := strconv.Atoi(nonce)
+    //nonceUint := uint64(i)
+    //tx := types.NewTransaction(txd.AccountNonce, common.HexToAddress(address), big.NewInt(12400000), uint64(10000000), big.NewInt(0), nil)
     signTx, _ := types.SignTx(tx, types.HomesteadSigner{},privateKey)
     marshalledTXSigned, _ := signTx.MarshalJSON()
     return string(marshalledTXSigned)
+}
+
+type Txdata struct {
+	AccountNonce uint64          `json:"nonce"    gencodec:"required"`
+	Price        *big.Int        `json:"gasPrice" gencodec:"required"`
+	GasLimit     uint64          `json:"gas"      gencodec:"required"`
+	Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
+	Amount       *big.Int        `json:"value"    gencodec:"required"`
+	Payload      []byte          `json:"input"    gencodec:"required"`
+
+	// Signature values
+	V *big.Int `json:"v" gencodec:"required"`
+	R *big.Int `json:"r" gencodec:"required"`
+	S *big.Int `json:"s" gencodec:"required"`
+
+	// This is only used when marshaling to JSON.
+	Hash *common.Hash `json:"hash" rlp:"-"`
 }
 
 const mockHelp = `
