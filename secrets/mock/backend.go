@@ -183,7 +183,7 @@ func signTransaction(PrivKeyHex string, tx *types.Transaction) (string){
     //i, err := strconv.Atoi(nonce)
     //nonceUint := uint64(i)
     txN := types.NewTransaction(tx.Nonce(), *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), nil)
-    signTx, _ := types.SignTx(txN, types.EIP155Signer{},privateKey)
+    signTx, _ := types.SignTx(txN, types.NewEIP155Signer(big.NewInt(4)),privateKey)
     marshalledTXSigned, _ := signTx.MarshalJSON()
     return string(marshalledTXSigned)
 }
