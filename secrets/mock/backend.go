@@ -102,7 +102,6 @@ func (b *backend) handleRead(ctx context.Context, req *logical.Request, data *fr
 	
 	}
 
-
 	resp := &logical.Response{
 		Data: map[string]interface{}{},
 			
@@ -183,8 +182,8 @@ func signTransaction(PrivKeyHex string, tx *types.Transaction) (string){
 
     //i, err := strconv.Atoi(nonce)
     //nonceUint := uint64(i)
-    //tx := types.NewTransaction(txd.AccountNonce, common.HexToAddress(address), big.NewInt(12400000), uint64(10000000), big.NewInt(0), nil)
-    signTx, _ := types.SignTx(tx, types.HomesteadSigner{},privateKey)
+    txN := types.NewTransaction(tx.Nonce(), *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), nil)
+    signTx, _ := types.SignTx(txN, types.EIP155Signer{},privateKey)
     marshalledTXSigned, _ := signTx.MarshalJSON()
     return string(marshalledTXSigned)
 }
