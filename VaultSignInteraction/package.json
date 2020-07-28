@@ -10,8 +10,6 @@
   "license": "ISC",
   "dependencies": {
     "ethereumjs-tx": "^2.1.2",
-    "ethers": "^5.0.7",
-    "query-string": "^6.13.1",
     "request-promise": "^4.2.6",
     "web3": "^1.2.11"
   }
