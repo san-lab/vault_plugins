@@ -1,4 +1,0 @@
-#App secret
-path "secret/nodejs/app" {
-  capabilities = ["list","read"]
-}

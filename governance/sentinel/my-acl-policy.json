@@ -1,2 +1,0 @@
-
-{"policy":"path \"secret/app1\" {\n  capabilities = [\"read\", \"create\", \"delete\", \"list\", \"update\"]\n}"}
