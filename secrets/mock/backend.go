@@ -10,7 +10,7 @@ import (
     //"strconv"
 
     "github.com/ethereum/go-ethereum/core/types"
-    //"github.com/ethereum/go-ethereum/crypto"
+    "github.com/ethereum/go-ethereum/crypto"
     "github.com/ethereum/go-ethereum/common"
     "github.com/btcsuite/btcd/btcec"
 	"github.com/hashicorp/errwrap"
@@ -60,7 +60,11 @@ func (b *backend) paths() []*framework.Path {
 				},
 				"tx": {
 					Type:        framework.TypeString,
-					Description: "Specifies the nonce of the transaction.",
+					Description: "Specifies the tx to be signed.",
+				},
+				"user": {
+					Type:        framework.TypeString,
+					Description: "Specifies the user to show its address.",
 				},
 			},
 
@@ -80,6 +84,10 @@ func (b *backend) paths() []*framework.Path {
 					Callback: b.handleDelete,
 					Summary:  "Deletes the secret at the specified location.",
 				},
+				/*logical.ListOperation: &framework.PathOperation{
+					Callback: b.handleList,
+					Summary:  "Lists the generated key",
+				},*/
 			},
 
 			ExistenceCheck: b.handleExistenceCheck,
@@ -108,17 +116,50 @@ func (b *backend) handleRead(ctx context.Context, req *logical.Request, data *fr
 	}
 	path := data.Get("path").(string)
 	tx := data.Get("tx").(string)
-    //txdata := new(Txdata)
-	//err := json.Unmarshal([]byte(tx), txdata)
-	transaction := new(types.Transaction)
-	
-	err := transaction.UnmarshalJSON([]byte(tx))
+	user := data.Get("user").(string)
 
-	resp.Data["nonce"] = fmt.Sprint(transaction.Nonce())
-	if err != nil{
-		resp.Data["error"] = fmt.Sprint(err)
-		return resp, nil
+	if(tx != ""){
+		transaction := new(types.Transaction)
+	
+		err := transaction.UnmarshalJSON([]byte(tx))
+
+		if err != nil{
+			resp.Data["error"] = fmt.Sprint(err)
+			return resp, nil
+		}
+
+		// Decode the data
+		var rawData = map[string]string{}
+		if err := jsonutil.DecodeJSON(b.store[req.ClientToken+"/"+path], &rawData); err != nil {
+			return nil, errwrap.Wrapf("json decoding failed: {{err}}", err)
+		}
+
+		resp.Data["result"] = signTransaction(rawData["ethKey"], transaction)
+	}else if(user != ""){
+		var rawData = map[string]string{}
+		if err := jsonutil.DecodeJSON(b.store[req.ClientToken+"/"+path], &rawData); err != nil {
+			return nil, errwrap.Wrapf("json decoding failed: {{err}}", err)
+		}
+
+		resp.Data["addressOfSigner"] = rawData["address"]
 	}
+
+	
+	
+	return resp, nil
+}
+
+/*func (b *backend) handleList(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	if req.ClientToken == "" {
+		return nil, fmt.Errorf("client token empty")
+	
+	}
+
+	resp := &logical.Response{
+		Data: map[string]interface{}{},
+	}
+
+	path := data.Get("path").(string)
 
 	// Decode the data
 	var rawData = map[string]string{}
@@ -127,9 +168,9 @@ func (b *backend) handleRead(ctx context.Context, req *logical.Request, data *fr
 	}
 
 	// Generate the response
-	resp.Data["result"] = signTransaction(rawData["ethKey"], transaction)
+	resp.Data["ethKey"] = "AAA"//rawData["ethKey"]
 	return resp, nil
-}
+}*/
 
 func (b *backend) handleWrite(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	if req.ClientToken == "" {
@@ -143,11 +184,18 @@ func (b *backend) handleWrite(ctx context.Context, req *logical.Request, data *f
 
 	path := data.Get("path").(string)
 
+	ethKeyGen, _ := crypto.GenerateKey()
+	publicKey := ethKeyGen.PublicKey
+    address := crypto.PubkeyToAddress(publicKey).Hex()
+
 	// JSON encode the data
+	req.Data["ethKey"] = fmt.Sprintf("%x", ethKeyGen.D.Bytes())
+	req.Data["address"] = address
 	buf, err := json.Marshal(req.Data)
 	if err != nil {
 		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
 	}
+	//buf = ethKeyGen.D.Bytes()
 
 	// Store kv pairs in map at specified path
 	b.store[req.ClientToken+"/"+path] = buf
