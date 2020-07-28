@@ -62,10 +62,6 @@ func (b *backend) paths() []*framework.Path {
 					Type:        framework.TypeString,
 					Description: "Specifies the tx to be signed.",
 				},
-				"user": {
-					Type:        framework.TypeString,
-					Description: "Specifies the user to show its address.",
-				},
 			},
 
 			Operations: map[logical.Operation]framework.OperationHandler{
@@ -116,7 +112,6 @@ func (b *backend) handleRead(ctx context.Context, req *logical.Request, data *fr
 	}
 	path := data.Get("path").(string)
 	tx := data.Get("tx").(string)
-	user := data.Get("user").(string)
 
 	if(tx != ""){
 		transaction := new(types.Transaction)
@@ -135,7 +130,7 @@ func (b *backend) handleRead(ctx context.Context, req *logical.Request, data *fr
 		}
 
 		resp.Data["result"] = signTransaction(rawData["ethKey"], transaction)
-	}else if(user != ""){
+	}else{
 		var rawData = map[string]string{}
 		if err := jsonutil.DecodeJSON(b.store[req.ClientToken+"/"+path], &rawData); err != nil {
 			return nil, errwrap.Wrapf("json decoding failed: {{err}}", err)
