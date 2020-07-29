@@ -1,4 +1,4 @@
-package ccpsecrets
+package mock
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	//"github.com/mitchellh/mapstructure"
 )
 
 func pathGenerate(b *backend) *framework.Path {
@@ -37,26 +36,33 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 		return nil, fmt.Errorf("client token empty")
 	}
 
-	// Check to make sure that kv pairs provided
-	if len(req.Data) == 0 {
-		return nil, fmt.Errorf("data must be provided to store in secret")
-	}
-
 	user := data.Get("user").(string)
 
 	ethKeyGen, _ := crypto.GenerateKey()
 	publicKey := ethKeyGen.PublicKey
     address := crypto.PubkeyToAddress(publicKey).Hex()
 
+    reqDataCopy := make(map[string]interface{})
+    for key, value := range req.Data {
+	  reqDataCopy[key] = value
+	}
+
 	// JSON encode the data
 	req.Data["address"] = address
-	buf, err := json.Marshal(req.Data)
+	bufAddr, err := json.Marshal(req.Data)
+	if err != nil {
+		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
+	}
+
+	reqDataCopy["ethkey"] = fmt.Sprintf("%x", ethKeyGen.D.Bytes())
+	bufKey, err := json.Marshal(reqDataCopy)
 	if err != nil {
 		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
 	}
 
 	// Store kv pairs in map at specified path
-	b.store[req.ClientToken+"/address/"+user] = buf
+	b.store[req.ClientToken+"/address/"+user] = bufAddr
+	b.store[req.ClientToken+"/key/"+user] = bufKey
 
 	return nil, nil
 }

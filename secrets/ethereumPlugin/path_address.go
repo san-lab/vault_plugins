@@ -1,4 +1,4 @@
-package ccpsecrets
+package mock
 
 import (
 	"context"
@@ -47,8 +47,6 @@ func (b *backend) pathAddressRead(ctx context.Context, req *logical.Request, dat
 	}
 
 	resp.Data["address"] = rawData["address"]
-
-	
 	
 	return resp, nil
 }
