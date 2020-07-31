@@ -9,4 +9,5 @@ require (
 	github.com/hashicorp/go-hclog v0.9.2
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/hashicorp/vault/sdk v0.1.11
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 )

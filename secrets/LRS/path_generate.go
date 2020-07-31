@@ -106,12 +106,13 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 	}
 
 	baseDataPriv1["privKey"] = fmt.Sprintf("%x", ringSK1.D.Bytes())
+	baseDataPriv1["pos"] = "0"
 	bufPriv1, err := json.Marshal(baseDataPriv1)
 	if err != nil {
 		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
 	}
-
-	b.store["/ringSignature/private/"+user1] = bufPriv1
+	path1 := "/ringSignature/private/"+user1
+	b.store[path1] = bufPriv1
 
 	baseDataPriv2 := make(map[string]interface{})
 
@@ -120,12 +121,13 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 	}
 
 	baseDataPriv2["privKey"] = fmt.Sprintf("%x", ringSK2.D.Bytes())
+	baseDataPriv2["pos"] = "1"
 	bufPriv2, err := json.Marshal(baseDataPriv2)
 	if err != nil {
 		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
 	}
-
-	b.store["/ringSignature/private/"+user2] = bufPriv2
+	path2 := "/ringSignature/private/"+user2
+	b.store[path2] = bufPriv2
 
 	baseDataPriv3 := make(map[string]interface{})
 
@@ -134,12 +136,13 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 	}
 
 	baseDataPriv3["privKey"] = fmt.Sprintf("%x", ringSK3.D.Bytes())
-	bufPriv3, err := json.Marshal(baseDataPriv1)
+	baseDataPriv3["pos"] = "2"
+	bufPriv3, err := json.Marshal(baseDataPriv3)
 	if err != nil {
 		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
 	}
-
-	b.store["/ringSignature/private/"+user3] = bufPriv3
+	path3 := "/ringSignature/private/"+user3
+	b.store[path3] = bufPriv3
 
 	baseDataPriv4 := make(map[string]interface{})
 
@@ -148,12 +151,13 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 	}
 
 	baseDataPriv4["privKey"] = fmt.Sprintf("%x", ringSK4.D.Bytes())
-	bufPriv4, err := json.Marshal(baseDataPriv1)
+	baseDataPriv4["pos"] = "3"
+	bufPriv4, err := json.Marshal(baseDataPriv4)
 	if err != nil {
 		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
 	}
-
-	b.store["/ringSignature/private/"+user4] = bufPriv4
+	path4 := "/ringSignature/private/"+user4
+	b.store[path4] = bufPriv4
 
 	baseDataPriv5 := make(map[string]interface{})
 
@@ -162,14 +166,25 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 	}
 
 	baseDataPriv5["privKey"] = fmt.Sprintf("%x", ringSK5.D.Bytes())
+	baseDataPriv5["pos"] = "4"
 	bufPriv5, err := json.Marshal(baseDataPriv5)
 	if err != nil {
 		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
 	}
+	path5 := "/ringSignature/private/"+user5
+	b.store[path5] = bufPriv5
 
-	b.store["/ringSignature/private/"+user5] = bufPriv5
+	resp := &logical.Response{
+		Data: map[string]interface{}{},
+	}
 
-	return nil, nil
+	resp.Data["user1"] = baseDataPriv1["privKey"].(string)
+	resp.Data["user2"] = baseDataPriv2["privKey"].(string)
+	resp.Data["user3"] = baseDataPriv3["privKey"].(string)
+	resp.Data["user4"] = baseDataPriv4["privKey"].(string)
+	resp.Data["user5"] = baseDataPriv5["privKey"].(string)
+
+	return resp, nil
 }
 
 const confHelpSyn = `
