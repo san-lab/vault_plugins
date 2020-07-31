@@ -8,16 +8,17 @@ const Tx = require('ethereumjs-tx').Transaction;
 const ETH_PRIV_KEY = '2659d295cf455bc033e5b5ec59afc67057425af8a71a694a5f59ad0e6b333f0c';
 const ETH_ACCOUNT = '0xc8dfCA661A53bC05EC1BC76d20Ba77C34F8facAb';
 const ETH_NETWORK = 'rinkeby';
+const username = "pedro";
 
 
-const getAddress = () => {
+const getAddress = (user) => {
     return new Promise((resolve, reject) => {
         const options = {
             method: 'GET',
             headers: {
                 'X-Vault-Token': 'root'
             },
-            uri: `${VAULT_URL}/v1/signTx/ethKeypedro`,
+            uri: `${VAULT_URL}/v1/ethereumPlugin/showAddr?user=${user}`,
             json: true,
         };
 
@@ -55,11 +56,11 @@ const getAddress = () => {
     }
 
     try {
-        const addressToBeFunded = await getAddress();
+        const addressToBeFunded = await getAddress(username);
 
-        console.log(`Address to be funded: ${addressToBeFunded.data.addressOfSigner}`)
+        console.log(`Address to be funded: ${addressToBeFunded.data.address}`)
 
-        txParams.to = addressToBeFunded.data.addressOfSigner;
+        txParams.to = addressToBeFunded.data.address;
 
         const tx = new Tx(txParams, { 'chain': ETH_NETWORK });
         tx.sign(privateKey);

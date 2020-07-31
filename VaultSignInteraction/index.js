@@ -5,17 +5,18 @@ const Web3 = require('web3');
 const rp = require('request-promise');
 const web3 = new Web3(ETHEREUM_URL);
 const Tx = require('ethereumjs-tx').Transaction;
+const username="pedro"
 
 const ETH_NETWORK = 'rinkeby';
 
-const getVault = (urlEncodedTx) => {
+const getVault = (urlEncodedTx, user) => {
     return new Promise((resolve, reject) => {
         const options = {
             method: 'GET',
             headers: {
                 'X-Vault-Token': 'root'
             },
-            uri: `${VAULT_URL}/v1/signTx/ethKeypedro?tx=${urlEncodedTx}`,
+            uri: `${VAULT_URL}/v1/ethereumPlugin/signTx?tx=${urlEncodedTx}&user=${user}`,
             json: true,
         };
 
@@ -50,14 +51,14 @@ const urlEncoder = (txObject) => {
     }).join('')
 }
 
-const getAddress = () => {
+const getAddress = (user) => {
     return new Promise((resolve, reject) => {
         const options = {
             method: 'GET',
             headers: {
                 'X-Vault-Token': 'root'
             },
-            uri: `${VAULT_URL}/v1/signTx/ethKeypedro`,
+            uri: `${VAULT_URL}/v1/ethereumPlugin/showAddr?user=${user}`,
             json: true,
         };
 
@@ -75,8 +76,8 @@ const getAddress = () => {
 
 (async function () {
 
-    const accountAddress = await getAddress();
-    const tnonce = await web3.eth.getTransactionCount(accountAddress.data.addressOfSigner)
+    const accountAddress = await getAddress(username);
+    const tnonce = await web3.eth.getTransactionCount(accountAddress.data.address)
 
     const tnonceHex = `0x${tnonce.toString(16)}`;
 
@@ -97,7 +98,7 @@ const getAddress = () => {
     console.log(`URL encoded transaction: ${urlEncodedTx}`);
 
     try {
-        const signedTx = await getVault(urlEncodedTx);
+        const signedTx = await getVault(urlEncodedTx, username);
 
         console.log(`Transaction with signature: ${signedTx.data.result}`)
 
