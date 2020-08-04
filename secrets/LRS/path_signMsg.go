@@ -69,7 +69,7 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 	if err := jsonutil.DecodeJSON(b.store["/ringSignature/publicKeys"], &rawData2); err != nil {
 		return nil, errwrap.Wrapf("json decoding failed: {{err}}", err)
 	}
-
+	
 	resp.Data["result"] = LRS(rawData["privKey"], rawData["pos"], msg, rawData2["pubKey1_X"], rawData2["pubKey2_X"], rawData2["pubKey3_X"], rawData2["pubKey4_X"], rawData2["pubKey5_X"], rawData2["pubKey1_Y"], rawData2["pubKey2_Y"], rawData2["pubKey3_Y"], rawData2["pubKey4_Y"], rawData2["pubKey5_Y"])
 	
 	return resp, nil
@@ -93,18 +93,20 @@ func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1
     privKey_bytes, _ := hex.DecodeString(PrivKeyHex)
     y_tilde_x, y_tilde_y := koblitz.ScalarMult(h_x, h_y, privKey_bytes)
 
+
     u := randomBigInt() //This should be random
     s_list := make([]*big.Int, 5)
     for i := 0; i < 5; i++{
     	s_list[i] = randomBigInt() //This should be random
     }
     c_list := make([]*big.Int, 5)
-    c_list[pos] = H1(u, pubKeys_x[pos], pubKeys_y[pos], big.NewInt(0), y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
-    
-    j := ((pos+1) % 5)
+    c_list[pos] = H1(u, pubKeys_x[pos], pubKeys_y[pos], big.NewInt(0), y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)	
 
+
+    j := ((pos+1) % 5)
+    prev_j := (j-1) % 5
     for j != pos {
-    	prev_j := (j-1) % 5
+    	prev_j = (j-1) % 5
     	if prev_j == -1 {
     		prev_j = 4
     	}
@@ -115,7 +117,11 @@ func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1
     parsed := new(big.Int)
     parsed.SetString(PrivKeyHex, 16)
     s_last_mul := new(big.Int)
-    s_last_mul.Mul(parsed, c_list[(j-1) % 5])
+ 	prev_j = (j-1) % 5
+ 	if prev_j == -1 {
+		prev_j = 4
+	}
+    s_last_mul.Mul(parsed, c_list[prev_j])
     s_last_sub := new(big.Int)
     s_last_sub.Sub(u,s_last_mul)
     s_last := new(big.Int)
