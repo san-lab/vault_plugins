@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"math/big"
+	//"bytes"
 	//"math/rand"
 	//"golang.org/x/crypto/sha3"
 	//"crypto/rand"
@@ -18,7 +19,8 @@ import (
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
     "github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	//"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/HcashOrg/hcashd/hcashec/secp256k1"
 )
 
 // pathQuery executes query operations against the CCP Web Service
@@ -84,23 +86,21 @@ func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1
 	pubKeys_y := []string{pubk1_y, pubk2_y, pubk3_y, pubk4_y, pubk5_y}
     
     L := pubk1_x + pubk2_x + pubk3_x + pubk4_x + pubk5_x
-    L_bytes := []byte(L)
+    L_bytes, _ := hex.DecodeString(L)
     h_0 := crypto.Keccak256(L_bytes)
     h_x, h_y := koblitz.ScalarMult(koblitz.Gx, koblitz.Gy, h_0)
 
     privKey_bytes, _ := hex.DecodeString(PrivKeyHex)
     y_tilde_x, y_tilde_y := koblitz.ScalarMult(h_x, h_y, privKey_bytes)
 
-    u := big.NewInt(5) //This should be random
+    u := randomBigInt() //This should be random
     s_list := make([]*big.Int, 5)
     for i := 0; i < 5; i++{
-    	s_list[i] = big.NewInt(5) //This should be random
+    	s_list[i] = randomBigInt() //This should be random
     }
     c_list := make([]*big.Int, 5)
-    //c_list[pos] = H1(u, pubKeys_x[pos], pubKeys_y[pos], big.NewInt(0), y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
-    ret := H1(u, pubKeys_x[pos], pubKeys_y[pos], big.NewInt(0), y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
-    return koblitz.Gx.Text(16) + "      " + ret
-
+    c_list[pos] = H1(u, pubKeys_x[pos], pubKeys_y[pos], big.NewInt(0), y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
+    
     j := ((pos+1) % 5)
 
     for j != pos {
@@ -108,7 +108,7 @@ func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1
     	if prev_j == -1 {
     		prev_j = 4
     	}
-    	//c_list[j] = H1(s_list[j], pubKeys_x[j], pubKeys_y[j], c_list[prev_j], y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
+    	c_list[j] = H1(s_list[j], pubKeys_x[j], pubKeys_y[j], c_list[prev_j], y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
     	j = (j+1) % 5
     }
 
@@ -129,7 +129,7 @@ func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1
     return signature_str
 }
 
-func H1(s *big.Int, pubK_x, pubK_y string, c, y_tilde_x, y_tilde_y , h_x, h_y *big.Int, L, msg string, koblitz *secp256k1.BitCurve) (string){
+func H1(s *big.Int, pubK_x, pubK_y string, c, y_tilde_x, y_tilde_y , h_x, h_y *big.Int, L, msg string, koblitz *secp256k1.KoblitzCurve) (*big.Int){
 	Y_x := new(big.Int)
 	Y_x.SetString(pubK_x, 16)
 	Y_y := new(big.Int)
@@ -138,12 +138,11 @@ func H1(s *big.Int, pubK_x, pubK_y string, c, y_tilde_x, y_tilde_y , h_x, h_y *b
 	s_bytes := s.Bytes()
 	c_bytes := c.Bytes()
 	if len(c_bytes) == 0 {
-		c_bytes =  []byte{1}
+		c_bytes =  []byte{0}
 	} 
 
 	t1_x, t1_y := koblitz.ScalarMult(koblitz.Gx, koblitz.Gy, s_bytes)
 	t2_x, t2_y := koblitz.ScalarMult(Y_x, Y_y, c_bytes)
-	return t1_x.Text(16) + " " + t1_y.Text(16) + " " + t2_x.Text(16) + " " + t2_y.Text(16)
 	t3_x, _ := koblitz.Add(t1_x, t1_y, t2_x, t2_y)
 	
 	v1_x, v1_y := koblitz.ScalarMult(h_x, h_y, s_bytes)
@@ -154,14 +153,23 @@ func H1(s *big.Int, pubK_x, pubK_y string, c, y_tilde_x, y_tilde_y , h_x, h_y *b
     t3ToHash := t3_x.Text(16)
     v3ToHash := v3_x.Text(16)
 
-    str_Tohash := L + ytildaxToHash + msg + t3ToHash + v3ToHash
-    ToHash_bytes := []byte(str_Tohash)
+	messageToHash := msg
+    for len(messageToHash) < 64 {
+        messageToHash = "0" + messageToHash
+    }
+
+    str_Tohash := L + ytildaxToHash + messageToHash + t3ToHash + v3ToHash
+    ToHash_bytes, _ := hex.DecodeString(str_Tohash)
     nextC_bytes := crypto.Keccak256(ToHash_bytes)
     nextC := new(big.Int)
     nextC.SetBytes(nextC_bytes)
 
-    return "aa"
-    //return nextC
+    return nextC
+}
+
+func randomBigInt() (*big.Int){
+	randomKey, _ := crypto.GenerateKey()
+	return randomKey.D
 }
 
 const queryHelpSyn = `
