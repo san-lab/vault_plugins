@@ -3,19 +3,21 @@ package mock
 import (
 	"context"
 	"fmt"
-	"time"
-	"encoding/binary"
+	//"time"
+	//"encoding/binary"
 	"encoding/hex"
 	"strconv"
 	"strings"
-    "math/rand"
 	"math/big"
-	"golang.org/x/crypto/sha3"
+	//"math/rand"
+	//"golang.org/x/crypto/sha3"
+	//"crypto/rand"
 
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
+    "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
@@ -83,24 +85,21 @@ func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1
     
     L := pubk1_x + pubk2_x + pubk3_x + pubk4_x + pubk5_x
     L_bytes := []byte(L)
-    kec256 := sha3.NewLegacyKeccak256()
-    kec256.Write(L_bytes)
-    h_0 := kec256.Sum(nil)
+    h_0 := crypto.Keccak256(L_bytes)
     h_x, h_y := koblitz.ScalarMult(koblitz.Gx, koblitz.Gy, h_0)
 
     privKey_bytes, _ := hex.DecodeString(PrivKeyHex)
     y_tilde_x, y_tilde_y := koblitz.ScalarMult(h_x, h_y, privKey_bytes)
 
-    rand.Seed(time.Now().UnixNano())
-    u := rand.Int()
-    s_list := make([]int, 5)
+    u := big.NewInt(5) //This should be random
+    s_list := make([]*big.Int, 5)
     for i := 0; i < 5; i++{
-    	rand.Seed(time.Now().UnixNano())
-    	s_list[i] = rand.Int()
+    	s_list[i] = big.NewInt(5) //This should be random
     }
-    c_list := make([]int, 5)
-    c_list[pos] = H1(u, pubKeys_x[pos], pubKeys_y[pos], 0, y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
-    //
+    c_list := make([]*big.Int, 5)
+    //c_list[pos] = H1(u, pubKeys_x[pos], pubKeys_y[pos], big.NewInt(0), y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
+    ret := H1(u, pubKeys_x[pos], pubKeys_y[pos], big.NewInt(0), y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
+    return koblitz.Gx.Text(16) + "      " + ret
 
     j := ((pos+1) % 5)
 
@@ -109,35 +108,44 @@ func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1
     	if prev_j == -1 {
     		prev_j = 4
     	}
-    	c_list[j] = H1(s_list[j], pubKeys_x[j], pubKeys_y[j], c_list[prev_j], y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
+    	//c_list[j] = H1(s_list[j], pubKeys_x[j], pubKeys_y[j], c_list[prev_j], y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
     	j = (j+1) % 5
     }
 
-    parsed, _ := strconv.ParseUint(PrivKeyHex, 16, 64)
-    privKeyInt := uint64(parsed)
-    s_last := (u - int(privKeyInt) * c_list[(j-1) % 5]) % int(koblitz.N.Int64()) //N is big.Int
+    parsed := new(big.Int)
+    parsed.SetString(PrivKeyHex, 16)
+    s_last_mul := new(big.Int)
+    s_last_mul.Mul(parsed, c_list[(j-1) % 5])
+    s_last_sub := new(big.Int)
+    s_last_sub.Sub(u,s_last_mul)
+    s_last := new(big.Int)
+    s_last.Mod(s_last_sub,koblitz.N)
     s_list[pos] = s_last
 
     //c_last := H1(s_last, pubKeys_x[pos], pubKeys_y[pos], c_list[(j-1) % 5], y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
 
-    signature_str := "{'C': " + strconv.Itoa(c_list[0]) + " 'S_list': [" + strings.Trim(strings.Replace(fmt.Sprint(s_list), " ", ",", -1), "[]") + "] 'Y_tilde':{ 'x': " + y_tilde_x.Text(16) +" , 'y' : " + y_tilde_y.Text(16) + "}, 'msg' : " + msg + "}"
+    signature_str := "{'C': " + c_list[0].Text(16) + " 'S_list': [" + strings.Trim(strings.Replace(fmt.Sprint(s_list), " ", ",", -1), "[]") + "] 'Y_tilde':{ 'x': " + y_tilde_x.Text(16) +" , 'y' : " + y_tilde_y.Text(16) + "}, 'msg' : " + msg + "}"
 
     return signature_str
 }
 
-func H1(s int, pubK_x, pubK_y string, c int, y_tilde_x, y_tilde_y , h_x, h_y *big.Int, L, msg string, koblitz *secp256k1.BitCurve) (int){
+func H1(s *big.Int, pubK_x, pubK_y string, c, y_tilde_x, y_tilde_y , h_x, h_y *big.Int, L, msg string, koblitz *secp256k1.BitCurve) (string){
 	Y_x := new(big.Int)
 	Y_x.SetString(pubK_x, 16)
 	Y_y := new(big.Int)
 	Y_y.SetString(pubK_y, 16)
 
-	s_bytes := []byte(strconv.Itoa(s))
-	c_bytes := []byte(strconv.Itoa(c))
+	s_bytes := s.Bytes()
+	c_bytes := c.Bytes()
+	if len(c_bytes) == 0 {
+		c_bytes =  []byte{1}
+	} 
 
 	t1_x, t1_y := koblitz.ScalarMult(koblitz.Gx, koblitz.Gy, s_bytes)
 	t2_x, t2_y := koblitz.ScalarMult(Y_x, Y_y, c_bytes)
+	return t1_x.Text(16) + " " + t1_y.Text(16) + " " + t2_x.Text(16) + " " + t2_y.Text(16)
 	t3_x, _ := koblitz.Add(t1_x, t1_y, t2_x, t2_y)
-
+	
 	v1_x, v1_y := koblitz.ScalarMult(h_x, h_y, s_bytes)
 	v2_x, v2_y := koblitz.ScalarMult(y_tilde_x, y_tilde_y, c_bytes)
 	v3_x, _ := koblitz.Add(v1_x, v1_y, v2_x, v2_y)
@@ -148,12 +156,12 @@ func H1(s int, pubK_x, pubK_y string, c int, y_tilde_x, y_tilde_y , h_x, h_y *bi
 
     str_Tohash := L + ytildaxToHash + msg + t3ToHash + v3ToHash
     ToHash_bytes := []byte(str_Tohash)
-    kec256 := sha3.NewLegacyKeccak256()
-    kec256.Write(ToHash_bytes)
-    nextC_bytes := kec256.Sum(nil)
-    nextC := binary.BigEndian.Uint32(nextC_bytes)
+    nextC_bytes := crypto.Keccak256(ToHash_bytes)
+    nextC := new(big.Int)
+    nextC.SetBytes(nextC_bytes)
 
-    return int(nextC)
+    return "aa"
+    //return nextC
 }
 
 const queryHelpSyn = `
