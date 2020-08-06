@@ -174,17 +174,17 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 	path5 := "/ringSignature/private/"+user5
 	b.store[path5] = bufPriv5
 
-	resp := &logical.Response{
-		Data: map[string]interface{}{},
-	}
+	//resp := &logical.Response{
+	//	Data: map[string]interface{}{},
+	//}
 
-	resp.Data["user1"] = baseDataPriv1["privKey"].(string)
-	resp.Data["user2"] = baseDataPriv2["privKey"].(string)
-	resp.Data["user3"] = baseDataPriv3["privKey"].(string)
-	resp.Data["user4"] = baseDataPriv4["privKey"].(string)
-	resp.Data["user5"] = baseDataPriv5["privKey"].(string)
+	//resp.Data["user1"] = baseDataPriv1["privKey"].(string)
+	//resp.Data["user2"] = baseDataPriv2["privKey"].(string)
+	//resp.Data["user3"] = baseDataPriv3["privKey"].(string)
+	//resp.Data["user4"] = baseDataPriv4["privKey"].(string)
+	//resp.Data["user5"] = baseDataPriv5["privKey"].(string)
 
-	return resp, nil
+	return nil, nil
 }
 
 const confHelpSyn = `

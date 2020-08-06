@@ -60,18 +60,34 @@ Go back to the first terminal
 export VAULT_ADDR="http://127.0.0.1:8200"
 vault login root
 vault secrets enable LRS
+vault policy write pedro Vault_profiles/user1.hcl 
+vault policy write guille Vault_profiles/user2.hcl 
+vault policy write przemek Vault_profiles/user3.hcl
+vault policy write jaime Vault_profiles/user4.hcl 
+vault policy write coty Vault_profiles/user5.hcl
 ```
-First we need to initialize the signer with a set of new keys
+First we need to initialize the signer with a set of new keys. This has to be done by the admin(root)
 ```
 vault write LRS/genKeys user1=pedro user2=guille user3=przemek user4=jaime user5=coty
+```
+Now we log in as one of the users
+```
+vault token create -policy=jaime (to create a login token)
+vault login <token>
 ```
 We can now ask for the pubKeys in a JSON format
 ```
 vault read LRS/showPubKeys
 ```
-Lastly we select who we want to sign with and the msg we want to sign in this case we will use guille and the msg will be "df3bf99309fdcc1065bacad26dc3e154ad08995a3c41571e4b17db30cef94566"
+Lastly we select who we want to sign with and the msg we want to sign in this case we will use jaime and the msg will be "df3bf99309fdcc1065bacad26dc3e154ad08995a3c41571e4b17db30cef94566"
 ```
-vault write LRS/signMsg/guille msg=df3bf99309fdcc1065bacad26dc3e154ad08995a3c41571e4b17db30cef94566
+vault write LRS/signMsg/jaime msg=df3bf99309fdcc1065bacad26dc3e154ad08995a3c41571e4b17db30cef94566
 ```
 Now we can take both outputs and use any LRS verifier to test the validity of it
+
+Finally we can try to sign as pedro while logged in as jaime
+```
+vault write LRS/signMsg/pedro msg=df3bf99309fdcc1065bacad26dc3e154ad08995a3c41571e4b17db30cef94566
+```
+we will get a permission denied error
 

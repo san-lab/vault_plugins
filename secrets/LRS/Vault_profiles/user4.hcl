@@ -1,4 +1,4 @@
-path "LRS/signMsg/pedro" {
+path "LRS/signMsg/jaime" {
   capabilities = [ "create", "read", "update", "delete", "list" ]
 }
 
