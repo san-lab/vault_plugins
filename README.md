@@ -1,4 +1,4 @@
-## Steps to test the plugin
+## Steps to test the ethereumPlugin
 ```
 cd vault-guides/secrets/ethereumPlugin
 go build -o vault/plugins/ethereumPlugin cmd/ethereumPlugin/main.go
@@ -46,6 +46,32 @@ WIP: Command to call the plugin using http
 
 curl -H "X-Vault-Token: root" -X GET  http://127.0.0.1:8200/v1/signTx/ethKeypedro?tx=%7B%22nonce%22%3A%220x33%22%2C%22gasPrice%22%3A%220x0%22%2C%22gas%22%3A%220x989680%22%2C%22to%22%3A%220x627306090abab3a6e1400e9345bc60c78a8bef57%22%2C%22value%22%3A%220xbd3580%22%2C%22input%22%3A%220x%22%2C%22v%22%3A%22%22%2C%22r%22%3A%22%22%2C%22s%22%3A%22%22%2C%22hash%22%3A%220xc0bacd35d3ea25a130696336dd6b1d811e9f5defdeb28530d0222b7ff2c979cb%22%7D
 
-Command using CLI
+## Steps to test the LRS plugin 
+```
+cd vault-guides/secrets/LRS
+go build -o ../ethereumPlugin/vault/plugins/LRS cmd/LRS/main.go
+```
+Start vault on a different terminal with 
+```
+vault server -dev -dev-root-token-id=root -dev-plugin-dir=./vault/plugins
+```
+Go back to the first terminal
+```
+export VAULT_ADDR="http://127.0.0.1:8200"
+vault login root
+vault secrets enable LRS
+```
+First we need to initialize the signer with a set of new keys
+```
+vault write LRS/genKeys user1=pedro user2=guille user3=przemek user4=jaime user5=coty
+```
+We can now ask for the pubKeys in a JSON format
+```
+vault read LRS/showPubKeys
+```
+Lastly we select who we want to sign with and the msg we want to sign in this case we will use guille and the msg will be "df3bf99309fdcc1065bacad26dc3e154ad08995a3c41571e4b17db30cef94566"
+```
+vault write LRS/signMsg/guille msg=df3bf99309fdcc1065bacad26dc3e154ad08995a3c41571e4b17db30cef94566
+```
+Now we can take both outputs and use any LRS verifier to test the validity of it
 
-vault read signTx/ethKeypedro tx="{\"nonce\":\"0x33\",\"gasPrice\":\"0x0\",\"gas\":\"0x989680\",\"to\":\"0x627306090abab3a6e1400e9345bc60c78a8bef57\",\"value\":\"0xbd3580\",\"input\":\"0x\",\"v\":\"\",\"r\":\"\",\"s\":\"\",\"hash\":\"0xc0bacd35d3ea25a130696336dd6b1d811e9f5defdeb28530d0222b7ff2c979cb\"}"
