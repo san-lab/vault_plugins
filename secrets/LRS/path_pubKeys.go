@@ -45,18 +45,7 @@ func (b *backend) pathAddressRead(ctx context.Context, req *logical.Request, dat
 		return nil, errwrap.Wrapf("json decoding failed: {{err}}", err)
 	}
 
-	resp.Data["pubKey1_X"] = rawData["pubKey1_X"]
-	resp.Data["pubKey1_Y"] = rawData["pubKey1_Y"]
-	resp.Data["pubKey2_X"] = rawData["pubKey2_X"]
-	resp.Data["pubKey2_Y"] = rawData["pubKey2_Y"]
-	resp.Data["pubKey3_X"] = rawData["pubKey3_X"]
-	resp.Data["pubKey3_Y"] = rawData["pubKey3_Y"]
-	resp.Data["pubKey4_X"] = rawData["pubKey4_X"]
-	resp.Data["pubKey4_Y"] = rawData["pubKey4_Y"]
-	resp.Data["pubKey5_X"] = rawData["pubKey5_X"]
-	resp.Data["pubKey5_Y"] = rawData["pubKey5_Y"]
-
-	
+	resp.Data["result"] = "{'Pubkeys': [{ 'x': 0x" + rawData["pubKey1_X"] + ", 'y': 0x" + rawData["pubKey1_Y"] + " }, { 'x': 0x" + rawData["pubKey2_X"] + ", 'y': 0x" + rawData["pubKey2_Y"] + " }, { 'x': 0x" + rawData["pubKey3_X"] + ", 'y': 0x" + rawData["pubKey3_Y"] + " }, { 'x': 0x" + rawData["pubKey4_X"] + ", 'y': 0x" + rawData["pubKey4_Y"] + " }, { 'x': 0x" + rawData["pubKey5_X"] + ", 'y': 0x" + rawData["pubKey5_Y"] + " }]}"	
 	
 	return resp, nil
 }

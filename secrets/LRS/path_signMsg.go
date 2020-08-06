@@ -3,30 +3,25 @@ package mock
 import (
 	"context"
 	"fmt"
-	//"time"
-	//"encoding/binary"
 	"encoding/hex"
 	"strconv"
 	"strings"
 	"math/big"
-	//"bytes"
-	//"math/rand"
-	//"golang.org/x/crypto/sha3"
-	//"crypto/rand"
+	"math/rand"
 
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
     "github.com/ethereum/go-ethereum/crypto"
-	//"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/HcashOrg/hcashd/hcashec/secp256k1"
 )
 
+const signMsgPathRegExp = signMsgPath + "/(?P<user>[^/]+)$"
 // pathQuery executes query operations against the CCP Web Service
 func pathSignMsg(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: signMsgPath + "$",
+		Pattern: signMsgPathRegExp,
 		Fields: map[string]*framework.FieldSchema{
 			"msg": {
 				Type:        framework.TypeString,
@@ -79,9 +74,7 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1_y,pubk2_y,pubk3_y,pubk4_y,pubk5_y string) (string){
 	koblitz := secp256k1.S256()
 	pos, _ := strconv.Atoi(pos_str)
-	//Gx y Gy coordernadas generador.
-	//P is equivalent to _p on the python code
-	//N is equivalent to _q on the python code
+
 	pubKeys_x := []string{pubk1_x, pubk2_x, pubk3_x, pubk4_x, pubk5_x}
 	pubKeys_y := []string{pubk1_y, pubk2_y, pubk3_y, pubk4_y, pubk5_y}
     
@@ -94,10 +87,10 @@ func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1
     y_tilde_x, y_tilde_y := koblitz.ScalarMult(h_x, h_y, privKey_bytes)
 
 
-    u := randomBigInt() //This should be random
+    u := randBigInt()
     s_list := make([]*big.Int, 5)
     for i := 0; i < 5; i++{
-    	s_list[i] = randomBigInt() //This should be random
+    	s_list[i] = randBigInt()
     }
     c_list := make([]*big.Int, 5)
     c_list[pos] = H1(u, pubKeys_x[pos], pubKeys_y[pos], big.NewInt(0), y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)	
@@ -128,9 +121,7 @@ func LRS(PrivKeyHex, pos_str, msg, pubk1_x,pubk2_x,pubk3_x,pubk4_x,pubk5_x,pubk1
     s_last.Mod(s_last_sub,koblitz.N)
     s_list[pos] = s_last
 
-    //c_last := H1(s_last, pubKeys_x[pos], pubKeys_y[pos], c_list[(j-1) % 5], y_tilde_x, y_tilde_y, h_x, h_y, L, msg, koblitz)
-
-    signature_str := "{'C': " + c_list[0].Text(16) + " 'S_list': [" + strings.Trim(strings.Replace(fmt.Sprint(s_list), " ", ",", -1), "[]") + "] 'Y_tilde':{ 'x': " + y_tilde_x.Text(16) +" , 'y' : " + y_tilde_y.Text(16) + "}, 'msg' : " + msg + "}"
+    signature_str := "{'C': 0x" + c_list[0].Text(16) + ", 'S_list': [" + strings.Trim(strings.Replace(fmt.Sprint(s_list), " ", ",", -1), "[]") + "], 'Y_tilde':{ 'x': 0x" + y_tilde_x.Text(16) +" , 'y' : 0x" + y_tilde_y.Text(16) + "}, 'msg' : \"" + msg + "\"}"
 
     return signature_str
 }
@@ -159,9 +150,21 @@ func H1(s *big.Int, pubK_x, pubK_y string, c, y_tilde_x, y_tilde_y , h_x, h_y *b
     t3ToHash := t3_x.Text(16)
     v3ToHash := v3_x.Text(16)
 
+    for len(ytildaxToHash) < 64 {
+        ytildaxToHash = "0" + ytildaxToHash
+    }
+
 	messageToHash := msg
     for len(messageToHash) < 64 {
         messageToHash = "0" + messageToHash
+    }
+
+    for len(t3ToHash) < 64 {
+        t3ToHash = "0" + t3ToHash
+    }
+
+    for len(v3ToHash) < 64 {
+        v3ToHash = "0" + v3ToHash
     }
 
     str_Tohash := L + ytildaxToHash + messageToHash + t3ToHash + v3ToHash
@@ -173,9 +176,11 @@ func H1(s *big.Int, pubK_x, pubK_y string, c, y_tilde_x, y_tilde_y , h_x, h_y *b
     return nextC
 }
 
-func randomBigInt() (*big.Int){
-	randomKey, _ := crypto.GenerateKey()
-	return randomKey.D
+func randBigInt() (*big.Int){
+	randomSeed := make([]byte, 32)
+    rand.Read(randomSeed)
+	randomBigInt := new(big.Int)
+    return randomBigInt.SetBytes(randomSeed)
 }
 
 const queryHelpSyn = `
