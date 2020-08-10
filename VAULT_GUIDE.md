@@ -91,4 +91,45 @@ having this token finally the user can login executing:
 vault login <token>
 ```
 
-## How to use your own custom plugin
+## How to use your custom plugin once compiled
+If you want to have a first idea of how to write a plugin you can take a look at the plugins that are present on this repo. They are under secrets, both EthereumPlugin and LRS.
+Once you have writen and compiled all your plugins in a known folder all you need to do is run the following command to start testing them.
+```
+vault server -dev -dev-root-token-id=root -dev-plugin-dir=<your_plugins_folder>
+```
+As you can see we are running the vault in dev mode which means we dont need to unseal or seal it. 
+At the same time we are setting the "dev-root-token" to "root" which means that we can get root permissions with the following command. Instead needing to remember a complex root token.
+```
+vault login root
+```
+Once we have already logged in, all we need to do is to enable our plugin secret engine with the following command.
+```
+vault secrets enable <plugin_name>
+```
+After this we can use our custom plugin normally as if it were part of the standard functionalities from vault.
+
+## Register plugin for non-dev mode Vault
+First you need to add an extra line on the config.hcl file from the vault at the begining.
+```
+plugin_directory = <your_plugin_directory>
+```
+After that you need to calculate the sha256 checksum of each of your plugins by executing.
+On linux
+```
+sha256sum <your_plugin_directory>/<your_plugin>
+```
+On mac
+```
+shasum -a 256 <your_plugin_directory>/<your_plugin>
+```
+You will get the hash of the plugin so now you need to register it on the new running vault.
+For that you need to execute
+```
+vault plugin register -sha256=<plugin_hash> <plugin_type> <plugin_name>
+```
+Where plugin type can be auth (for an authentication plugin) or secret (for a secret engine plugin)
+After this you will have already registered the plugin on you vault and you just need to enable it by executing.
+```
+vault secrets enable -path=<plugin_name> LRS <plugin_name>
+```
+After that you can use the plugin as normal.
