@@ -10,9 +10,10 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
+const showAddressPathRegExp = showAddressPath + "/(?P<user>[^/]+)$"
 func pathAddress(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: showAddressPath + "$",
+		Pattern: showAddressPathRegExp,
 		Fields: map[string]*framework.FieldSchema{
 			"user": {
 				Type:        framework.TypeString,

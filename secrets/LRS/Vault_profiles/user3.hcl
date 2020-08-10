@@ -1,7 +1,7 @@
 path "LRS/signMsg/przemek" {
-  capabilities = [ "create", "read", "update", "delete", "list" ]
+  capabilities = [ "create", "update"]
 }
 
 path "LRS/showPubKeys" {
-  capabilities = [ "create", "read", "update", "delete", "list" ]
+  capabilities = ["read"]
 }

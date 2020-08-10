@@ -23,8 +23,8 @@ Now you can try to log in as different users and see that each of them can only 
 vault token create -policy=pedro (to create a login token)
 vault login <token>
 vault write ethereumPlugin/genKey user=pedro
-vault read ethereumPlugin/showAddr user=pedro
-vault read ethereumPlugin/signTx user=pedro tx="{\"nonce\":\"0x33\",\"gasPrice\":\"0x0\",\"gas\":\"0x989680\",\"to\":\"0x627306090abab3a6e1400e9345bc60c78a8bef57\",\"value\":\"0xbd3580\",\"input\":\"0x\",\"v\":\"\",\"r\":\"\",\"s\":\"\",\"hash\":\"0xc0bacd35d3ea25a130696336dd6b1d811e9f5defdeb28530d0222b7ff2c979cb\"}"
+vault read ethereumPlugin/showAddr/pedro
+vault write ethereumPlugin/signTx/pedro tx="{\"nonce\":\"0x33\",\"gasPrice\":\"0x0\",\"gas\":\"0x989680\",\"to\":\"0x627306090abab3a6e1400e9345bc60c78a8bef57\",\"value\":\"0xbd3580\",\"input\":\"0x\",\"v\":\"\",\"r\":\"\",\"s\":\"\",\"hash\":\"0xc0bacd35d3ea25a130696336dd6b1d811e9f5defdeb28530d0222b7ff2c979cb\"}"
 ```
 
 
@@ -36,7 +36,8 @@ vault login root
 ```
 vault token create -policy=przemek
 vault login <token>
-vault read signTx/ethKeypedro
+vault read ethereumPlugin/showAddr/pedro
+vault read ethereumPlugin/signTx/pedro tx="{\"nonce\":\"0x33\",\"gasPrice\":\"0x0\",\"gas\":\"0x989680\",\"to\":\"0x627306090abab3a6e1400e9345bc60c78a8bef57\",\"value\":\"0xbd3580\",\"input\":\"0x\",\"v\":\"\",\"r\":\"\",\"s\":\"\",\"hash\":\"0xc0bacd35d3ea25a130696336dd6b1d811e9f5defdeb28530d0222b7ff2c979cb\"}"
 ```
 
 If you want to have a look at the backend code its under /vault-guides/secrets/mock/backend.go

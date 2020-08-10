@@ -15,10 +15,11 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
+const signTxPathRegExp = signTxPath + "/(?P<user>[^/]+)$"
 // pathQuery executes query operations against the CCP Web Service
 func pathSignTx(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: signTxPath + "$",
+		Pattern: signTxPathRegExp,
 		Fields: map[string]*framework.FieldSchema{
 			"tx": {
 				Type:        framework.TypeString,
