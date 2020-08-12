@@ -12,6 +12,7 @@ import (
 const generatePath string = "genKeys"
 const showPubKeysPath string = "showPubKeys"
 const signMsgPath string = "signMsg"
+const signMsgPathExt string = "signMsgExt"
 
 // Factory configures and returns Mock backends
 func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
@@ -27,6 +28,7 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 				pathGenerate(b),
 				pathPubKeys(b),
 				pathSignMsg(b),
+				pathSignMsgExt(b),
 			},
 		),
 	}
