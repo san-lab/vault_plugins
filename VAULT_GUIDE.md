@@ -260,8 +260,14 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 	// Store kv pairs in map at specified path
 	b.store[req.ClientToken+"/address/"+user] = bufAddr
 	b.store[req.ClientToken+"/key/"+user] = bufKey
+	
+	resp := &logical.Response{
+		Data: map[string]interface{}{},
+			
+	}
+	resp.Data["address"] = address
 
-	return nil, nil
+	return resp, nil
 }
 
 const confHelpSyn = `
@@ -294,14 +300,25 @@ Finally we need to write the function with the whole logic for each of those dif
     }
     ```
     
-- At the end of the function you can observe that we are saving both the generated address and key inside "b.store".
+- Next almost at the end of the function you can observe that we are saving both the generated address and key inside "b.store".
     ```go
         b.store[req.ClientToken+"/address/"+user] = bufAddr
         b.store[req.ClientToken+"/key/"+user] = bufKey
     ```
     This corresponds to the storage part of the backend that will persist between executions, the store is as simple as a mapping from string to bytes. This is very usefull because you can store any kind of information as long as you Marshall it before to get its bytes representation.
     
-- (Talk about resp) TODO
+- Finally let's take a look at how to return anything that we want to show on the screen as an ouput to the user. First we need to initialize the response as.
+    ```go
+    resp := &logical.Response {
+        Data: map[string]interface{}{},
+            
+    }
+    ```
+    After that we can insert insert any key/ value pair that we want. In this example we are saving under the key address the actual generated address that is a string.
+    ```go
+    resp.Data["address"] = address
+    ```
+    The whole structure will be printed as a table of key value to the end user.
 
 Once you have your code ready you just need to compile, but we recommend to specify where the output of the compilation and save all your plugins under a well known folder.
 
