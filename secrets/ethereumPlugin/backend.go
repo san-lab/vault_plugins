@@ -1,4 +1,4 @@
-package mock
+package ethPlugin
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 	}
 
 	b.Backend = &framework.Backend{
-		Help:        strings.TrimSpace(mockHelp),
+		Help:        strings.TrimSpace(ethereumPluginHelp),
 		BackendType: logical.TypeLogical,
 		Paths: framework.PathAppend(
 			[]*framework.Path{
@@ -51,6 +51,6 @@ type backend struct {
 
 
 
-const mockHelp = `
-The Mock backend is a dummy secrets backend that stores kv pairs in a map.
+const ethereumPluginHelp = `
+The ethereumPlugin backend is a plugin that allows you to input a ethereum transaction and returns it signed.
 `

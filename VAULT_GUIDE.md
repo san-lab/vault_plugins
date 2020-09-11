@@ -91,7 +91,221 @@ having this token finally the user can login executing:
 vault login <token>
 ```
 
-## How to use your custom plugin once compiled
+## Vault Plugin system
+### Quick thoughts on the plugin system.
+1. Having Golang as the language to program the plugins is a very good feature, since it is a language that has many libraries for security and cryptography handling. This allows you to use any preexisting code, we did so in the transaction signer plugin where we are reusing the actual code  that is used for signing inside Go-ethereum.
+2. Now a days the documentation is inexistent, all the information that we used to program the pluging was either obtained talking to actual Hashicorp Engineers or by looking at the actual code from Hashicorp Vault.
+
+### Quick guide to build you own plugin
+First you need to create the main.go file that is what links you plugin to the rest of vault, this code is always the same and does not depend on your plugin.
+```go
+package main
+
+import (
+	"os"
+
+	"github.com/hashicorp/go-hclog"
+	mock "github.com/hashicorp/vault-guides/secrets/mock"
+	"github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/sdk/plugin"
+)
+
+func main() {
+	apiClientMeta := &api.PluginAPIClientMeta{}
+	flags := apiClientMeta.FlagSet()
+	flags.Parse(os.Args[1:])
+
+	tlsConfig := apiClientMeta.GetTLSConfig()
+	tlsProviderFunc := api.VaultPluginTLSProvider(tlsConfig)
+
+	err := plugin.Serve(&plugin.ServeOpts{
+		BackendFactoryFunc: mock.Factory,
+		TLSProviderFunc:    tlsProviderFunc,
+	})
+	if err != nil {
+		logger := hclog.New(&hclog.LoggerOptions{})
+
+		logger.Error("plugin shutting down", "error", err)
+		os.Exit(1)
+	}
+}
+```
+
+Now we need to create the file where we define Factory that we used on main.go.
+This is the point where we define how many different funcitonalities will our plugin have and which will be the path for each of them.
+
+```go
+package ethPlugin
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/vault/sdk/framework"
+	"github.com/hashicorp/vault/sdk/logical"
+)
+
+const generatePath string = "genKey"
+const showAddressPath string = "showAddr"
+const signTxPath string = "signTx"
+
+// Factory configures and returns Mock backends
+func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
+	b := &backend{
+		store: make(map[string][]byte),
+	}
+
+	b.Backend = &framework.Backend{
+		Help:        strings.TrimSpace(ethereumPluginHelp),
+		BackendType: logical.TypeLogical,
+		Paths: framework.PathAppend(
+			[]*framework.Path{
+				pathGenerate(b),
+				pathAddress(b),
+				pathSignTx(b),
+			},
+		),
+	}
+
+	//b.Backend.Paths = append(b.Backend.Paths, b.paths()...)
+
+	if conf == nil {
+		return nil, fmt.Errorf("configuration passed into backend is nil")
+	}
+
+	b.Backend.Setup(ctx, conf)
+
+	return b, nil
+}
+
+// backend wraps the backend framework and adds a map for storing key value pairs
+type backend struct {
+	*framework.Backend
+
+	store map[string][]byte
+}
+
+const ethereumPluginHelp = `
+The ethereumPlugin backend is a plugin that allows you to input a ethereum transaction and returns it signed.
+`
+```
+The main parts of the code are:
+1. After the imports we are defining 3 constants. Each one of them is one of the verbs that will be used on the app to access the different functionalities of the plugin(in this case generating a key pair, showing the address related to the key pair and the actual signing of a transaction using that key pair).
+2. On the definition of the Factory function take a look on the definition of the different paths. Those are the 3 function that will be called depending on the API verb used (pathGenerate, pathAddress and pathSignTx) we will see how they are defined on the next step.
+
+Finally we need to define the functionality for each of the paths that we defined on the factory. We will have a look at how we defined the "pathGenerate" function since the process to generate all of them is pretty similar.
+```go
+package ethPlugin
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+    "github.com/ethereum/go-ethereum/crypto"
+	"github.com/hashicorp/errwrap"
+	"github.com/hashicorp/vault/sdk/framework"
+	"github.com/hashicorp/vault/sdk/logical"
+)
+
+func pathGenerate(b *backend) *framework.Path {
+	return &framework.Path{
+		Pattern: generatePath + "$",
+		Fields: map[string]*framework.FieldSchema{
+			"user": {
+				Type:        framework.TypeString,
+				Description: "Specifies the user of the secret.",
+			},
+		},
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.CreateOperation: b.pathGenerateWrite,
+			logical.UpdateOperation: b.pathGenerateWrite,
+		},
+
+		HelpSynopsis:    confHelpSyn,
+		HelpDescription: confHelpDesc,
+	}
+}
+
+func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	if req.ClientToken == "" {
+		return nil, fmt.Errorf("client token empty")
+	}
+
+	user := data.Get("user").(string)
+
+	ethKeyGen, _ := crypto.GenerateKey()
+	publicKey := ethKeyGen.PublicKey
+    address := crypto.PubkeyToAddress(publicKey).Hex()
+
+    reqDataCopy := make(map[string]interface{})
+    for key, value := range req.Data {
+	  reqDataCopy[key] = value
+	}
+
+	// JSON encode the data
+	req.Data["address"] = address
+	bufAddr, err := json.Marshal(req.Data)
+	if err != nil {
+		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
+	}
+
+	reqDataCopy["ethkey"] = fmt.Sprintf("%x", ethKeyGen.D.Bytes())
+	bufKey, err := json.Marshal(reqDataCopy)
+	if err != nil {
+		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
+	}
+
+	// Store kv pairs in map at specified path
+	b.store[req.ClientToken+"/address/"+user] = bufAddr
+	b.store[req.ClientToken+"/key/"+user] = bufKey
+
+	return nil, nil
+}
+
+const confHelpSyn = `
+TODO.
+`
+const confHelpDesc = `
+TODO.
+`
+```
+Inside pathGenerate first we need to specify the different input parameters that will be accepted by the command. In this case we only have one that is "user" of type string.
+
+After that we need to specify the different callbacks that our command will have. Each command can have 5 different callbacks: CreateOperation, ReadOperation, UpdateOperation, DeleteOperation and ListOperation. As you can see in this case we are only defining behaviour for create and update, the rest of them will be undefined and will show a warning if they are called.
+
+Finally we need to write the function with the whole logic for each of those different callbacks. In this case let's take a look at our "pathGenerateWrite" function.
+- Inside data we have all the input parameters that we specified previously. We just need to cast them to their actual data type since they are stored as a generic interface without datatype specified.
+    ```
+    user := data.Get("user").(string)
+    ```
+- Another important part of the code is the *Data* field from the *req* variable passed as a parameter. This variable will contain any paraneter that was passed to the command that was not defined explicitly. In our example we only defined user as an expected input variable, so imagine that we call our command as.
+    ```shell
+    <command> user=Isaac city=London country=England
+    ```
+    In this case *req.Data["city"]* would contain "London" and *req.Data["country"]* would contain England.
+    In the example we are analising *req.Data* is empty but we are reusing it as an intermidiate datastructure to store the address and get it marshalled.
+    ```go
+    req.Data["address"] = address
+    bufAddr, err := json.Marshal(req.Data)
+    if err != nil {
+        return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
+    }
+    ```
+    
+- At the end of the function you can observe that we are saving both the generated address and key inside "b.store".
+    ```go
+        b.store[req.ClientToken+"/address/"+user] = bufAddr
+        b.store[req.ClientToken+"/key/"+user] = bufKey
+    ```
+    This corresponds to the storage part of the backend that will persist between executions, the store is as simple as a mapping from string to bytes. This is very usefull because you can store any kind of information as long as you Marshall it before to get its bytes representation.
+    
+- (Talk about resp) TODO
+
+Once you have your code ready you just need to compile, but we recommend to specify where the output of the compilation and save all your plugins under a well known folder.
+
+### How to use your custom plugin once compiled
 If you want to have a first idea of how to write a plugin you can take a look at the plugins that are present on this repo. They are under secrets, both EthereumPlugin and LRS.
 Once you have writen and compiled all your plugins in a known folder all you need to do is run the following command to start testing them.
 ```
@@ -108,7 +322,7 @@ vault secrets enable <plugin_name>
 ```
 After this we can use our custom plugin normally as if it were part of the standard functionalities from vault.
 
-## Register plugin for non-dev mode Vault
+### Register plugin for non-dev mode Vault
 First you need to add an extra line on the config.hcl file from the vault at the begining.
 ```
 plugin_directory = <your_plugin_directory>
