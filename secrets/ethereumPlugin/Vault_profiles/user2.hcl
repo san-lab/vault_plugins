@@ -1,4 +1,4 @@
-path "ethereumPlugin/genKey/guille" {
+path "ethereumPlugin/genKey" {
   capabilities = [ "create", "update"]
 }
 

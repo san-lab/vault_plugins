@@ -1,4 +1,4 @@
-path "ethereumPlugin/genKey/przemek" {
+path "ethereumPlugin/genKey" {
   capabilities = [ "create", "update"]
 }
 

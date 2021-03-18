@@ -1,4 +1,4 @@
-path "ethereumPlugin/genKey/pedro" {
+path "ethereumPlugin/genKey" {
   capabilities = [ "create", "update"]
 }
 
