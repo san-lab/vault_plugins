@@ -5,10 +5,12 @@ import (
 	"fmt"
     "math/big"
 	"encoding/hex"
+	"crypto/ecdsa"
     //"strconv"
 
+
     "github.com/ethereum/go-ethereum/core/types"
-    "github.com/btcsuite/btcd/btcec"
+    //"github.com/btcsuite/btcd/btcec"
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -82,17 +84,39 @@ func signTransaction(PrivKeyHex string, tx *types.Transaction) (string){
         fmt.Println(err)
                 return "error"
     }
-    priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), bts)
+    priv, _ := PrivKeyFromBytes(S256(), bts)
     privateKey := priv.ToECDSA()
-    //publicKey := privateKey.PublicKey
-    //address := crypto.PubkeyToAddress(publicKey).Hex()
-
-    //i, err := strconv.Atoi(nonce)
-    //nonceUint := uint64(i)
     txN := types.NewTransaction(tx.Nonce(), *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), nil)
-    signTx, _ := types.SignTx(txN, types.NewEIP155Signer(big.NewInt(4)),privateKey)
+    signTx, _ := SignTx(txN, types.NewEIP155Signer(big.NewInt(4)),privateKey)
     marshalledTXSigned, _ := signTx.MarshalJSON()
     return string(marshalledTXSigned)
+}
+
+func SignTx (tx *types.Transaction, s types.Signer, prv *ecdsa.PrivateKey) (*types.Transaction, error) {
+	h := s.Hash(tx)
+	sig, err := Sign(h[:], prv)
+	if err != nil {
+		return nil, err
+	}
+	return tx.WithSignature(s, sig)
+}
+
+func Sign(hash []byte, prv *ecdsa.PrivateKey) ([]byte, error) {
+	if len(hash) != 32 {
+		return nil, fmt.Errorf("hash is required to be exactly 32 bytes (%d)", len(hash))
+	}
+	if prv.Curve != S256() {
+		return nil, fmt.Errorf("private key curve is not secp256k1")
+	}
+	sig, err := SignCompact(S256(), (*PrivateKey)(prv), hash, false)
+	if err != nil {
+		return nil, err
+	}
+	// Convert to Ethereum signature format with 'recovery id' v at the end.
+	v := sig[0] - 27
+	copy(sig, sig[1:])
+	sig[64] = v
+	return sig, nil
 }
 
 const queryHelpSyn = `

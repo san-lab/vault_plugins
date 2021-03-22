@@ -11,6 +11,7 @@ import (
 
 const generatePath string = "genKey"
 const showAddressPath string = "showAddr"
+const preSignPath string = "preSign"
 const signTxPath string = "signTx"
 
 // Factory configures and returns Mock backends
@@ -26,6 +27,7 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 			[]*framework.Path{
 				pathGenerate(b),
 				pathAddress(b),
+				pathPreSign(b),
 				pathSignTx(b),
 			},
 		),
