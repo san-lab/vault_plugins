@@ -47,6 +47,11 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 	  reqDataCopy[key] = value
 	}
 
+	reqDataCopy2 := make(map[string]interface{})
+    for key, value := range req.Data {
+	  reqDataCopy2[key] = value
+	}
+
 	// JSON encode the data
 	req.Data["address"] = address
 	bufAddr, err := json.Marshal(req.Data)
@@ -60,9 +65,16 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
 	}
 
+	reqDataCopy2["pubKey"] = publicKey.X.String()+","+publicKey.Y.String()
+	bufPubKey, err := json.Marshal(reqDataCopy2)
+	if err != nil {
+		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
+	}
+
 	// Store kv pairs in map at specified path
 	b.store[req.ClientToken+"/address/"+user] = bufAddr
 	b.store[req.ClientToken+"/key/"+user] = bufKey
+	b.store[req.ClientToken+"/pubKey/"+user] = bufPubKey
 
 	return nil, nil
 }

@@ -72,6 +72,10 @@ type KoblitzCurve struct {
 	b2 *big.Int
 }
 
+func (curve *KoblitzCurve) HalfOrder () (*big.Int) {
+	return curve.halfOrder
+}
+
 // Params returns the parameters for the curve.
 func (curve *KoblitzCurve) Params() *elliptic.CurveParams {
 	return curve.CurveParams

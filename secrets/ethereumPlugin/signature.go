@@ -368,11 +368,18 @@ func recoverKeyFromSignature(curve *KoblitzCurve, sig *Signature, msg []byte,
 // <(byte of 27+public key solution)+4 if compressed >< padded bytes for signature R><padded bytes for signature S>
 // where the R and S parameters are padde up to the bitlengh of the curve.
 func SignCompact(curve *KoblitzCurve, key *PrivateKey,
-	hash []byte, isCompressedKey bool) ([]byte, error) {
-	sig, err := key.Sign(hash)
+	hash []byte, isCompressedKey bool) ([]byte, *big.Int, error) {
+	sigBytes, err := key.Sign(hash)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	sigBigInt := new(big.Int)
+	sigBigInt.SetBytes(sigBytes)
+	r := new(big.Int)
+	s := new(big.Int)
+	r.SetBytes(sigBytes[0:32])
+	s.SetBytes(sigBytes[32:64])
+	sig := &Signature{R: r, S: s}
 
 	// bitcoind checks the bit length of R and S here. The ecdsa signature
 	// algorithm returns R and S mod N therefore they will be the bitsize of
@@ -403,11 +410,11 @@ func SignCompact(curve *KoblitzCurve, key *PrivateKey,
 			}
 			result = append(result, sig.S.Bytes()...)
 
-			return result, nil
+			return result, sigBigInt, nil
 		}
 	}
 
-	return nil, errors.New("no valid solution for pubkey found")
+	return nil, nil, errors.New("no valid solution for pubkey found")
 }
 
 // RecoverCompact verifies the compact signature "signature" of "hash" for the
