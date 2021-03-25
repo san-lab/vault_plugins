@@ -2,23 +2,24 @@ package ethPlugin
 
 import (
 	"context"
-	"fmt"
-    "math/big"
 	"encoding/hex"
-	"crypto/ecdsa"
+	"fmt"
+	"math/big"
 	"strings"
-    //"strconv"
 
+	//"strconv"
 
-    "github.com/ethereum/go-ethereum/core/types"
-    //"github.com/btcsuite/btcd/btcec"
-	"github.com/hashicorp/vault/sdk/helper/jsonutil"
+	"github.com/btcsuite/btcd/btcec"
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
+	"github.com/hashicorp/vault/sdk/helper/jsonutil"
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
 const signTxPathRegExp = signTxPath + "/(?P<user>[^/]+)$"
+
 // pathQuery executes query operations against the CCP Web Service
 func pathSignTx(b *backend) *framework.Path {
 	return &framework.Path{
@@ -50,7 +51,6 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{},
-			
 	}
 	transaction := data.Get("tx").(string)
 	user := data.Get("user").(string)
@@ -59,11 +59,11 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 
 	err := tx.UnmarshalJSON([]byte(transaction))
 
-	if err != nil{
+	if err != nil {
 		resp.Data["error"] = fmt.Sprint(err)
 		return resp, nil
 	}
-	
+
 	var rawDataPriv = map[string]string{}
 	if err := jsonutil.DecodeJSON(b.store[req.ClientToken+"/key/"+user], &rawDataPriv); err != nil {
 		return nil, errwrap.Wrapf("json decoding failed: {{err}}", err)
@@ -76,59 +76,70 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 
 	//priv, pub and hash
 	privKeyStr := rawDataPriv["ethkey"]
-	privateKeyECDSA, _ := converToECDSA(privKeyStr)
+	privBytes, _ := hex.DecodeString(privKeyStr)
+	privateKey, _ := btcec.PrivKeyFromBytes(btcec.S256(), privBytes)
 	pubKeyStr := rawDataPub["pubKey"]
 	pubKeyCoordinates := strings.Split(pubKeyStr, ",")
+	pubKeyX := new(big.Int)
+	pubKeyX.SetString(pubKeyCoordinates[0], 10)
 	pubKeyY := new(big.Int)
 	pubKeyY.SetString(pubKeyCoordinates[1], 10)
 
 	signer := types.NewEIP155Signer(big.NewInt(4))
 	txN := types.NewTransaction(tx.Nonce(), *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), nil)
-   	hash := signer.Hash(txN)
+	hash := signer.Hash(txN)
 
 	//sign(priv, hash) -> barray
-	hsm_signature, _ := privateKeyECDSA.Sign(hash[:])
-	hsm_signature_BigInt := new(big.Int)
-	hsm_signature_BigInt.SetBytes(hsm_signature)
+	hsm_signature, _ := privateKey.Sign(hash[:])
+
+	hsm_resp := hsm_signature.Serialize()
+
+	hsmR := new(big.Int).SetBytes(hsm_resp[4:36])
+	hsmS := new(big.Int).SetBytes(hsm_resp[38:70])
 
 	//barray -> (R,S)
-	r := new(big.Int)
-	s := new(big.Int)
-	r.SetBytes(hsm_signature[0:32])
-	s.SetBytes(hsm_signature[32:64])
+	r := hsmR //hsm_signature.R
+	s := hsmS //hsm_signature.S
 
 	//use pubk to determine v -> (y coordinate) bigger than half of the prime of the field or even/odd
-	curve := S256()
+
 	var v byte
-	//if(pubKeyY.Cmp(curve.HalfOrder()) == -1){
-	if(pubKeyY.Bit(0) == 0){
-		v = 27
-	} else {
-		v = 28
-	}
-	signatureBytes := VRS_to_bytes(curve, v, r, s)
+
+	//Calculate inverse of s
+	s1 := new(big.Int)
+	s1.ModInverse(s, btcec.S256().N)
+
+	//R=s1*(r*Pb + h*G)
+	Rx, Ry := btcec.S256().ScalarBaseMult(hash[:])
+	Ax, Ay := btcec.S256().ScalarMult(pubKeyX, pubKeyY, r.Bytes())
+	Rx, Ry = btcec.S256().Add(Rx, Ry, Ax, Ay)
+	Rx, Ry = btcec.S256().ScalarMult(Rx, Ry, s1.Bytes())
+
+	v = byte(Ry.Bit(0))
+
+	signatureBytes := VRS_to_bytes(v, r, s)
 
 	//append to signedTx
 	signedTxStr := addSignatureToTransaction(signatureBytes, signer, txN)
 
-	resp.Data["intermidiateSign"] = hsm_signature_BigInt.String()
+	//resp.Data["intermidiateSign"] = hsm_signature_BigInt.String()
 	resp.Data["result"] = signedTxStr
 	resp.Data["resultPrev"] = signTransaction(privKeyStr, tx)
-	
+
 	return resp, nil
 }
 
-func addSignatureToTransaction(signatureBytes []byte, signer types.Signer, tx *types.Transaction) (string) {
+func addSignatureToTransaction(signatureBytes []byte, signer types.Signer, tx *types.Transaction) string {
 	signTx, _ := tx.WithSignature(signer, signatureBytes)
 	marshalledTXSigned, _ := signTx.MarshalJSON()
 	return string(marshalledTXSigned)
 }
 
-func VRS_to_bytes(curve *KoblitzCurve, v byte, r *big.Int, s *big.Int) ([]byte) {
-	result := make([]byte, 1, 2*curve.byteSize+1)
-	result[0] = v
+//Returns a slice []byte with r, s (padded) and v (as 0,1)
+func VRS_to_bytes(v byte, r *big.Int, s *big.Int) []byte {
+	result := make([]byte, 0, 2*32+1)
 	// Not sure this needs rounding but safer to do so.
-	curvelen := (curve.BitSize + 7) / 8
+	curvelen := 32
 
 	// Pad R and S to curvelen if needed.
 	bytelen := (r.BitLen() + 7) / 8
@@ -145,69 +156,53 @@ func VRS_to_bytes(curve *KoblitzCurve, v byte, r *big.Int, s *big.Int) ([]byte) 
 	}
 	result = append(result, s.Bytes()...)
 
-	v_aux := result[0] - 27
-	copy(result, result[1:])
-	result[64] = v_aux
-
+	result = append(result, v)
 	return result
-}
-
-func converToECDSA (privKeyStr string) (*PrivateKey, error) {
-	bts, err := hex.DecodeString(privKeyStr[:])
-    if err !=nil{
-        fmt.Println(err)
-                return nil, fmt.Errorf("incorrect priv key")
-    }
-    priv, _ := PrivKeyFromBytes(S256(), bts)
-    privateKeyECDSA := priv.ToECDSA()
-
-    return (*PrivateKey)(privateKeyECDSA), nil
 }
 
 //METHODS USE ON PREVIOUS VERSION
 
-func signTransaction(PrivKeyHex string, tx *types.Transaction) (string){
+func signTransaction(PrivKeyHex string, tx *types.Transaction) string {
 
-    bts, err := hex.DecodeString(PrivKeyHex[:])
-    if err !=nil{
-        fmt.Println(err)
-                return "error"
-    }
-    priv, _ := PrivKeyFromBytes(S256(), bts)
-    privateKey := priv.ToECDSA()
-    txN := types.NewTransaction(tx.Nonce(), *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), nil)
-    _, signTx, _ := SignTx(txN, types.NewEIP155Signer(big.NewInt(4)),privateKey)
-    marshalledTXSigned, _ := signTx.MarshalJSON()
-    return string(marshalledTXSigned)
+	bts, err := hex.DecodeString(PrivKeyHex[:])
+	if err != nil {
+		fmt.Println(err)
+		return "error"
+	}
+	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), bts)
+	txN := types.NewTransaction(tx.Nonce(), *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), nil)
+	signTx, _ := SignTx(txN, types.NewEIP155Signer(big.NewInt(4)), priv)
+	marshalledTXSigned, _ := signTx.MarshalJSON()
+	return string(marshalledTXSigned)
 }
 
-func SignTx(tx *types.Transaction, s types.Signer, prv *ecdsa.PrivateKey) (*big.Int, *types.Transaction, error) {
+func SignTx(tx *types.Transaction, s types.Signer, prv *btcec.PrivateKey) (*types.Transaction, error) {
 	h := s.Hash(tx)
-	sig, precomputeSig, err := Sign(h[:], prv)
+	sig, err := Sign(h[:], prv)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	sigRet, errRet := tx.WithSignature(s, sig)
 
-	return precomputeSig, sigRet, errRet
+	return sigRet, errRet
 }
 
-func Sign(hash []byte, prv *ecdsa.PrivateKey) ([]byte, *big.Int, error) {
+func Sign(hash []byte, prv *btcec.PrivateKey) ([]byte, error) {
 	if len(hash) != 32 {
-		return nil, nil, fmt.Errorf("hash is required to be exactly 32 bytes (%d)", len(hash))
+		return nil, fmt.Errorf("hash is required to be exactly 32 bytes (%d)", len(hash))
 	}
-	if prv.Curve != S256() {
-		return nil, nil, fmt.Errorf("private key curve is not secp256k1")
+	if prv.Curve != btcec.S256() {
+		return nil, fmt.Errorf("private key curve is not secp256k1")
 	}
-	sig, precomputeSig, err := SignCompact(S256(), (*PrivateKey)(prv), hash, false)
+	sig, err := btcec.SignCompact(btcec.S256(), prv, hash, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// Convert to Ethereum signature format with 'recovery id' v at the end.
 	v := sig[0] - 27
 	copy(sig, sig[1:])
 	sig[64] = v
-	return sig, precomputeSig, nil
+	return sig, nil
 }
 
 const queryHelpSyn = `
