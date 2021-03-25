@@ -75,9 +75,7 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 	}
 
 	//priv, pub and hash
-	privKeyStr := rawDataPriv["ethkey"]
-	privBytes, _ := hex.DecodeString(privKeyStr)
-	privateKey, _ := btcec.PrivKeyFromBytes(btcec.S256(), privBytes)
+
 	pubKeyStr := rawDataPub["pubKey"]
 	pubKeyCoordinates := strings.Split(pubKeyStr, ",")
 	pubKeyX := new(big.Int)
@@ -87,15 +85,19 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 
 	signer := types.NewEIP155Signer(big.NewInt(4))
 	txN := types.NewTransaction(tx.Nonce(), *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), nil)
+
+	//Emulated call to HSM
 	hash := signer.Hash(txN)
+	hsm_resp, err := HsmCallMock(b, user, req, hash[:])
+	if err != nil {
+		return nil, errwrap.Wrapf("HSM signing failed: {{err}}", err)
+	}
 
-	//sign(priv, hash) -> barray
-	hsm_signature, _ := privateKey.Sign(hash[:])
-
-	hsm_resp := hsm_signature.Serialize()
-
-	hsmR := new(big.Int).SetBytes(hsm_resp[4:36])
-	hsmS := new(big.Int).SetBytes(hsm_resp[38:70])
+	//Some hacked-away ASN1 parsing
+	R_len := hsm_resp[3]
+	hsmR := new(big.Int).SetBytes(hsm_resp[4 : 4+R_len])
+	S_len := hsm_resp[5+R_len]
+	hsmS := new(big.Int).SetBytes(hsm_resp[6+R_len : 6+R_len+S_len])
 
 	//barray -> (R,S)
 	r := hsmR //hsm_signature.R
@@ -123,9 +125,8 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 	signedTxStr := addSignatureToTransaction(signatureBytes, signer, txN)
 
 	//resp.Data["intermidiateSign"] = hsm_signature_BigInt.String()
+	resp.Data["HSM signature"] = hex.EncodeToString(hsm_resp)
 	resp.Data["result"] = signedTxStr
-	resp.Data["resultPrev"] = signTransaction(privKeyStr, tx)
-
 	return resp, nil
 }
 
@@ -158,51 +159,6 @@ func VRS_to_bytes(v byte, r *big.Int, s *big.Int) []byte {
 
 	result = append(result, v)
 	return result
-}
-
-//METHODS USE ON PREVIOUS VERSION
-
-func signTransaction(PrivKeyHex string, tx *types.Transaction) string {
-
-	bts, err := hex.DecodeString(PrivKeyHex[:])
-	if err != nil {
-		fmt.Println(err)
-		return "error"
-	}
-	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), bts)
-	txN := types.NewTransaction(tx.Nonce(), *tx.To(), tx.Value(), tx.Gas(), tx.GasPrice(), nil)
-	signTx, _ := SignTx(txN, types.NewEIP155Signer(big.NewInt(4)), priv)
-	marshalledTXSigned, _ := signTx.MarshalJSON()
-	return string(marshalledTXSigned)
-}
-
-func SignTx(tx *types.Transaction, s types.Signer, prv *btcec.PrivateKey) (*types.Transaction, error) {
-	h := s.Hash(tx)
-	sig, err := Sign(h[:], prv)
-	if err != nil {
-		return nil, err
-	}
-	sigRet, errRet := tx.WithSignature(s, sig)
-
-	return sigRet, errRet
-}
-
-func Sign(hash []byte, prv *btcec.PrivateKey) ([]byte, error) {
-	if len(hash) != 32 {
-		return nil, fmt.Errorf("hash is required to be exactly 32 bytes (%d)", len(hash))
-	}
-	if prv.Curve != btcec.S256() {
-		return nil, fmt.Errorf("private key curve is not secp256k1")
-	}
-	sig, err := btcec.SignCompact(btcec.S256(), prv, hash, false)
-	if err != nil {
-		return nil, err
-	}
-	// Convert to Ethereum signature format with 'recovery id' v at the end.
-	v := sig[0] - 27
-	copy(sig, sig[1:])
-	sig[64] = v
-	return sig, nil
 }
 
 const queryHelpSyn = `
