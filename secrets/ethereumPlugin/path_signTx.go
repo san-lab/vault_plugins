@@ -7,8 +7,6 @@ import (
 	"math/big"
 	"strings"
 
-	//"strconv"
-
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/ethereum/go-ethereum/core/types"
 
@@ -64,19 +62,8 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 		return resp, nil
 	}
 
-	var rawDataPriv = map[string]string{}
-	if err := jsonutil.DecodeJSON(b.store[req.ClientToken+"/key/"+user], &rawDataPriv); err != nil {
-		return nil, errwrap.Wrapf("json decoding failed: {{err}}", err)
-	}
-
-	var rawDataPub = map[string]string{}
-	if err := jsonutil.DecodeJSON(b.store[req.ClientToken+"/pubKey/"+user], &rawDataPub); err != nil {
-		return nil, errwrap.Wrapf("json decoding failed: {{err}}", err)
-	}
-
 	//priv, pub and hash
-
-	pubKeyStr := rawDataPub["pubKey"]
+	pubKeyStr, _ := retrievePubKey(b, req, user)
 	pubKeyCoordinates := strings.Split(pubKeyStr, ",")
 	pubKeyX := new(big.Int)
 	pubKeyX.SetString(pubKeyCoordinates[0], 10)
@@ -103,10 +90,6 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 	r := hsmR //hsm_signature.R
 	s := hsmS //hsm_signature.S
 
-	//use pubk to determine v -> (y coordinate) bigger than half of the prime of the field or even/odd
-
-	var v byte
-
 	//Calculate inverse of s
 	s1 := new(big.Int)
 	s1.ModInverse(s, btcec.S256().N)
@@ -117,6 +100,7 @@ func (b *backend) pathSignWrite(ctx context.Context, req *logical.Request, data 
 	Rx, Ry = btcec.S256().Add(Rx, Ry, Ax, Ay)
 	Rx, Ry = btcec.S256().ScalarMult(Rx, Ry, s1.Bytes())
 
+	var v byte
 	v = byte(Ry.Bit(0))
 
 	signatureBytes := VRS_to_bytes(v, r, s)
@@ -161,9 +145,21 @@ func VRS_to_bytes(v byte, r *big.Int, s *big.Int) []byte {
 	return result
 }
 
+func retrievePubKey (b *backend, req *logical.Request, user string) (string, error) {
+	var rawDataPub = map[string]string{}
+	if err := jsonutil.DecodeJSON(b.store[req.ClientToken+"/pubKey/"+user], &rawDataPub); err != nil {
+		return "", errwrap.Wrapf("json decoding failed: {{err}}", err)
+	}
+	return rawDataPub["pubKey"], nil
+}
+
 const queryHelpSyn = `
-TODO
+Command to sign Ethereum transactions
 `
 const queryHelpDesc = `
-TODO
+It performs the whole signing process 
+simulating the way it would be done when
+having an HSM on the backend which
+generates the signature in the standard 
+format and needs to later on be formated
 `

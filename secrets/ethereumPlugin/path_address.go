@@ -53,8 +53,8 @@ func (b *backend) pathAddressRead(ctx context.Context, req *logical.Request, dat
 }
 
 const objectHelpSyn = `
-TODO
+Retrieves the address depending on
+the private key of the user
 `
 const objectHelpDesc = `
-TODO
 `

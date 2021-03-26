@@ -1,6 +1,6 @@
 ## Steps to test the ethereumPlugin
 ```
-cd vault-guides/secrets/ethereumPlugin
+cd vault_plugins/secrets/ethereumPlugin
 go build -o vault/plugins/ethereumPlugin cmd/ethereumPlugin/main.go
 ```
 
@@ -40,7 +40,7 @@ vault read ethereumPlugin/showAddr/pedro
 vault read ethereumPlugin/signTx/pedro tx="{\"nonce\":\"0x33\",\"gasPrice\":\"0x0\",\"gas\":\"0x989680\",\"to\":\"0x627306090abab3a6e1400e9345bc60c78a8bef57\",\"value\":\"0xbd3580\",\"input\":\"0x\",\"v\":\"\",\"r\":\"\",\"s\":\"\",\"hash\":\"0xc0bacd35d3ea25a130696336dd6b1d811e9f5defdeb28530d0222b7ff2c979cb\"}"
 ```
 
-If you want to have a look at the backend code its under /vault-guides/secrets/mock/backend.go
+If you want to have a look at the backend code its under /vault_plugins/secrets/mock/backend.go
 
 
 WIP: Command to call the plugin using http
@@ -49,7 +49,7 @@ curl -H "X-Vault-Token: root" -X GET  http://127.0.0.1:8200/v1/signTx/ethKeypedr
 
 ## Steps to test the LRS plugin 
 ```
-cd vault-guides/secrets/LRS
+cd vault_plugins/secrets/LRS
 go build -o ../ethereumPlugin/vault/plugins/LRS cmd/LRS/main.go
 ```
 Start vault on a different terminal with 

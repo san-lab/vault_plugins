@@ -80,8 +80,11 @@ func (b *backend) pathGenerateWrite(ctx context.Context, req *logical.Request, d
 }
 
 const confHelpSyn = `
-TODO.
+Command that generates a new private
+key for the specified user
 `
 const confHelpDesc = `
-TODO.
+This command creates the private key
+and stores it on the user private path 
+so it's only accesible to that user
 `
